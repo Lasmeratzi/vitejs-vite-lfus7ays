@@ -23,14 +23,6 @@ const ASSET_SIZES = [
   'Over ₱20 million',
 ];
 
-const WORKER_COUNTS = [
-  'No specific',
-  '1 - 10',
-  '11 - 99',
-  '100 - 199',
-  '200 and above',
-];
-
 // ---------- helpers ----------
 const php = (n) =>
   '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
@@ -57,7 +49,7 @@ document.querySelector('#app').innerHTML = `
   <header class="topbar">
     <div class="container">
       <div class="brand">
-        <div class="logo">₱</div>
+        <img class="logo" src="/etracslogo.svg" alt="ETRACS logo" />
         <div>
           <h1>ETRACS Pricing Tracker</h1>
           <p>Manage businesses and their base fees</p>
@@ -68,53 +60,11 @@ document.querySelector('#app').innerHTML = `
 
   <main class="container">
     <section class="card">
-      <div class="card-head">
-        <h2 id="formTitle">Add a business</h2>
-        <p>Fill in all fields, then save to add it to the list below.</p>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search by business name, industry, or asset size..." autocomplete="off" />
+        <button type="button" id="newBtn" class="btn-primary">+ New Business</button>
       </div>
 
-      <form id="form" novalidate>
-        <div id="editBanner"></div>
-
-        <div class="grid">
-          <div class="field full">
-            <label for="name">Business name</label>
-            <input id="name" type="text" placeholder="e.g. Juan's Bakery" autocomplete="off" />
-          </div>
-
-          <div class="field">
-            <label for="category">Industry</label>
-            <select id="category">${options(INDUSTRIES, 'Select industry')}</select>
-          </div>
-
-          <div class="field">
-            <label for="asset">Asset size</label>
-            <select id="asset">${options(ASSET_SIZES, 'Select asset size')}</select>
-          </div>
-
-          <div class="field">
-          <label for="workers">Number of workers</label>
-          <input id="workers" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 25" />
-        </div>
-
-          <div class="field">
-            <label for="fee">Base fee (₱)</label>
-            <div class="fee-wrap">
-              <input id="fee" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" />
-              <div class="fee-ghost"><span class="typed" id="feeTyped"></span><span id="feeSuffix"></span></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button type="submit" id="submitBtn" class="btn-primary">Save business</button>
-          <button type="button" id="cancel" class="btn-ghost" style="display:none">Cancel</button>
-          <div id="msg"></div>
-        </div>
-      </form>
-    </section>
-
-    <section class="card">
       <div class="card-head row">
         <div>
           <h2>Businesses</h2>
@@ -141,6 +91,55 @@ document.querySelector('#app').innerHTML = `
       </div>
     </section>
   </main>
+
+  <dialog id="modal">
+    <div class="modal-head">
+      <h2 id="formTitle">Add a business</h2>
+      <button type="button" id="closeBtn" class="icon-btn" aria-label="Close">×</button>
+    </div>
+
+    <form id="form" novalidate>
+      <div id="editBanner"></div>
+
+      <div class="grid">
+        <div class="field full">
+          <label for="name">Business name</label>
+          <input id="name" type="text" placeholder="e.g. Juan's Bakery" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label for="category">Industry</label>
+          <select id="category">${options(INDUSTRIES, 'Select industry')}</select>
+        </div>
+
+        <div class="field">
+          <label for="asset">Asset size</label>
+          <select id="asset">${options(ASSET_SIZES, 'Select asset size')}</select>
+        </div>
+
+        <div class="field">
+          <label for="workers">Number of workers</label>
+          <input id="workers" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 25" />
+        </div>
+
+        <div class="field">
+          <label for="fee">Base fee (₱)</label>
+          <div class="fee-wrap">
+            <input id="fee" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" />
+            <div class="fee-ghost"><span class="typed" id="feeTyped"></span><span id="feeSuffix"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" id="submitBtn" class="btn-primary">Save business</button>
+        <button type="button" id="cancel" class="btn-ghost">Cancel</button>
+        <div id="msg"></div>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast"></div>
 `;
 
 const form = document.querySelector('#form');
@@ -156,14 +155,30 @@ const cancelBtn = document.querySelector('#cancel');
 const editBanner = document.querySelector('#editBanner');
 const formTitle = document.querySelector('#formTitle');
 const countEl = document.querySelector('#count');
+const modal = document.querySelector('#modal');
+const searchInput = document.querySelector('#search');
+const newBtn = document.querySelector('#newBtn');
+const closeBtn = document.querySelector('#closeBtn');
+const toastEl = document.querySelector('#toast');
 
-let businesses = []; // the rows currently shown in the table
+let businesses = []; // all rows from the database
 let editingId = null; // null = adding, otherwise the id being edited
+let searchTerm = '';
+let toastTimer;
 
 // ---------- messages ----------
+// message inside the pop-up
 function showMsg(text, type) {
   msg.textContent = text;
   msg.className = type; // 'error' or 'success'
+}
+
+// message on the page (outside the pop-up)
+function notify(text, type) {
+  toastEl.textContent = text;
+  toastEl.className = type + ' show';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (toastEl.className = ''), 3500);
 }
 
 function isDuplicate(error) {
@@ -210,6 +225,7 @@ feeInput.addEventListener('blur', () => {
   updateFeeGhost();
 });
 
+// number of workers: whole numbers only
 workersSel.addEventListener('input', () => {
   workersSel.value = workersSel.value.replace(/\D/g, '').slice(0, 7);
 });
@@ -217,7 +233,7 @@ workersSel.addEventListener('input', () => {
 // clear the ghost text after form.reset()
 form.addEventListener('reset', () => setTimeout(updateFeeGhost, 0));
 
-// ---------- edit mode ----------
+// ---------- pop-up (add / edit) ----------
 function startEdit(b) {
   editingId = b.id;
   nameInput.value = b.business_name;
@@ -231,11 +247,9 @@ function startEdit(b) {
   editBanner.textContent = `You are editing: ${b.business_name}`;
   editBanner.style.display = 'block';
   submitBtn.textContent = 'Update business';
-  cancelBtn.style.display = 'inline-block';
   showMsg('', '');
   renderList();
-  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  nameInput.focus();
+  modal.showModal();
 }
 
 function stopEdit() {
@@ -244,26 +258,67 @@ function stopEdit() {
   formTitle.textContent = 'Add a business';
   editBanner.style.display = 'none';
   submitBtn.textContent = 'Save business';
-  cancelBtn.style.display = 'none';
   renderList();
 }
 
-cancelBtn.addEventListener('click', () => {
+// "+ New Business" opens an empty form
+newBtn.addEventListener('click', () => {
+  stopEdit();
+  showMsg('', '');
+  modal.showModal();
+  nameInput.focus();
+});
+
+cancelBtn.addEventListener('click', () => modal.close());
+closeBtn.addEventListener('click', () => modal.close());
+
+// clicking the dark area outside the pop-up closes it
+modal.addEventListener('click', (e) => {
+  if (e.target === modal) modal.close();
+});
+
+// runs whenever the pop-up closes (Cancel, X, Esc key, or after saving)
+modal.addEventListener('close', () => {
   stopEdit();
   showMsg('', '');
 });
 
+// ---------- search ----------
+searchInput.addEventListener('input', () => {
+  searchTerm = searchInput.value.trim().toLowerCase();
+  renderList();
+});
+
+function visibleBusinesses() {
+  if (!searchTerm) return businesses;
+  return businesses.filter((b) =>
+    [b.business_name, b.category, b.asset_size]
+      .join(' ')
+      .toLowerCase()
+      .includes(searchTerm)
+  );
+}
+
 // ---------- the list ----------
 function renderList() {
-  countEl.textContent = `${businesses.length} total`;
+  const rows = visibleBusinesses();
+
+  countEl.textContent = searchTerm
+    ? `${rows.length} of ${businesses.length}`
+    : `${businesses.length} total`;
 
   if (!businesses.length) {
     list.innerHTML =
-      '<tr><td class="empty" colspan="7">No businesses yet. Add your first one above.</td></tr>';
+      '<tr><td class="empty" colspan="7">No businesses yet. Click “+ New Business” to add your first one.</td></tr>';
+    return;
+  }
+  if (!rows.length) {
+    list.innerHTML =
+      '<tr><td class="empty" colspan="7">No businesses match your search.</td></tr>';
     return;
   }
 
-  list.innerHTML = businesses
+  list.innerHTML = rows
     .map(
       (b) => `
       <tr class="${String(b.id) === String(editingId) ? 'editing' : ''}">
@@ -324,20 +379,19 @@ list.addEventListener('click', async (e) => {
       .select();
 
     if (error) {
-      showMsg('Could not delete the business. Please try again.', 'error');
+      notify('Could not delete the business. Please try again.', 'error');
       console.error(error);
       return;
     }
     if (!data || data.length === 0) {
-      showMsg(
+      notify(
         'Nothing was deleted. The database may not allow deleting yet (check the Supabase policy).',
         'error'
       );
       return;
     }
 
-    if (String(editingId) === String(b.id)) stopEdit();
-    showMsg(`"${b.business_name}" was deleted.`, 'success');
+    notify(`"${b.business_name}" was deleted.`, 'success');
     loadBusinesses();
   }
 });
@@ -414,8 +468,8 @@ form.addEventListener('submit', async (e) => {
   }
 
   const wasEditing = editingId !== null;
-  stopEdit();
-  showMsg(wasEditing ? 'Business updated!' : 'Business saved!', 'success');
+  modal.close(); // also resets the form through the 'close' handler
+  notify(wasEditing ? 'Business updated!' : 'Business saved!', 'success');
   loadBusinesses();
 });
 
