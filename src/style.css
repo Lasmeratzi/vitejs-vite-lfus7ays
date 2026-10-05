@@ -348,7 +348,8 @@ td.fee {
 }
 
 td.muted {
-  color: var(--muted);
+  color: var(--ink);
+  font-weight: 400;
 }
 
 td.empty {

@@ -93,9 +93,9 @@ document.querySelector('#app').innerHTML = `
           </div>
 
           <div class="field">
-            <label for="workers">Number of workers</label>
-            <select id="workers">${options(WORKER_COUNTS, 'Select number of workers')}</select>
-          </div>
+          <label for="workers">Number of workers</label>
+          <input id="workers" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 25" />
+        </div>
 
           <div class="field">
             <label for="fee">Base fee (₱)</label>
@@ -210,6 +210,10 @@ feeInput.addEventListener('blur', () => {
   updateFeeGhost();
 });
 
+workersSel.addEventListener('input', () => {
+  workersSel.value = workersSel.value.replace(/\D/g, '').slice(0, 7);
+});
+
 // clear the ghost text after form.reset()
 form.addEventListener('reset', () => setTimeout(updateFeeGhost, 0));
 
@@ -219,7 +223,7 @@ function startEdit(b) {
   nameInput.value = b.business_name;
   categorySel.value = b.category;
   assetSel.value = b.asset_size;
-  workersSel.value = b.worker_count;
+  workersSel.value = b.worker_count ?? '';
   feeInput.value = b.base_fee == null ? '' : Number(b.base_fee).toFixed(2);
   updateFeeGhost();
 
@@ -266,7 +270,7 @@ function renderList() {
         <td class="name">${esc(b.business_name)}</td>
         <td><span class="badge">${esc(b.category)}</span></td>
         <td class="muted">${esc(b.asset_size)}</td>
-        <td class="muted">${esc(b.worker_count)}</td>
+        <td class="muted">${b.worker_count == null ? '' : Number(b.worker_count).toLocaleString('en-PH')}</td>
         <td class="fee">${b.base_fee == null ? '' : php(b.base_fee)}</td>
         <td class="muted">${new Date(b.created_at).toLocaleDateString('en-PH')}</td>
         <td class="actions">
@@ -369,7 +373,7 @@ form.addEventListener('submit', async (e) => {
     business_name,
     category,
     asset_size,
-    worker_count,
+    worker_count: Number(worker_count),
     base_fee: Number(base_fee),
   };
 
