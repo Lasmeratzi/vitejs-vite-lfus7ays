@@ -59,30 +59,33 @@ document.querySelector('#app').innerHTML = `
   </header>
 
   <main class="container">
+    <div class="stats" id="stats"></div>
+
     <section class="card">
       <div class="toolbar">
         <input id="search" type="search" placeholder="Search by business name, industry, or asset size..." autocomplete="off" />
+        <select id="industryFilter" aria-label="Filter by industry">${options(INDUSTRIES, 'All industries')}</select>
         <button type="button" id="newBtn" class="btn-primary">+ New Business</button>
       </div>
 
       <div class="card-head row">
         <div>
           <h2>Businesses</h2>
-          <p>All businesses saved in the system.</p>
+          <p>All businesses saved in the system. Click a column title to sort.</p>
         </div>
         <span class="count" id="count">0 total</span>
       </div>
 
       <div class="table-scroll">
         <table>
-          <thead>
+          <thead id="thead">
             <tr>
-              <th>Business name</th>
-              <th>Industry</th>
-              <th>Asset size</th>
-              <th>Workers</th>
-              <th>Base fee</th>
-              <th>Date added</th>
+              <th class="sortable" data-sort="business_name">Business name</th>
+              <th class="sortable" data-sort="category">Industry</th>
+              <th class="sortable" data-sort="asset_size">Asset size</th>
+              <th class="sortable num" data-sort="worker_count">Workers</th>
+              <th class="sortable num" data-sort="base_fee">Base fee</th>
+              <th class="sortable" data-sort="created_at">Date added</th>
               <th style="text-align:right">Actions</th>
             </tr>
           </thead>
@@ -150,6 +153,8 @@ const workersSel = document.querySelector('#workers');
 const feeInput = document.querySelector('#fee');
 const msg = document.querySelector('#msg');
 const list = document.querySelector('#list');
+const thead = document.querySelector('#thead');
+const statsEl = document.querySelector('#stats');
 const submitBtn = document.querySelector('#submitBtn');
 const cancelBtn = document.querySelector('#cancel');
 const editBanner = document.querySelector('#editBanner');
@@ -157,6 +162,7 @@ const formTitle = document.querySelector('#formTitle');
 const countEl = document.querySelector('#count');
 const modal = document.querySelector('#modal');
 const searchInput = document.querySelector('#search');
+const industryFilter = document.querySelector('#industryFilter');
 const newBtn = document.querySelector('#newBtn');
 const closeBtn = document.querySelector('#closeBtn');
 const toastEl = document.querySelector('#toast');
@@ -164,6 +170,10 @@ const toastEl = document.querySelector('#toast');
 let businesses = []; // all rows from the database
 let editingId = null; // null = adding, otherwise the id being edited
 let searchTerm = '';
+let industryTerm = '';
+let sortKey = 'created_at';
+let sortDir = 'desc';
+let loading = true;
 let toastTimer;
 
 // ---------- messages ----------
@@ -283,27 +293,102 @@ modal.addEventListener('close', () => {
   showMsg('', '');
 });
 
-// ---------- search ----------
+// ---------- search, filter, sort ----------
 searchInput.addEventListener('input', () => {
   searchTerm = searchInput.value.trim().toLowerCase();
   renderList();
 });
 
+industryFilter.addEventListener('change', () => {
+  industryTerm = industryFilter.value;
+  renderList();
+});
+
+thead.addEventListener('click', (e) => {
+  const th = e.target.closest('th[data-sort]');
+  if (!th) return;
+  const key = th.dataset.sort;
+  if (sortKey === key) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey = key;
+    sortDir = key === 'base_fee' || key === 'created_at' ? 'desc' : 'asc';
+  }
+  renderList();
+});
+
 function visibleBusinesses() {
-  if (!searchTerm) return businesses;
-  return businesses.filter((b) =>
-    [b.business_name, b.category, b.asset_size]
+  return businesses.filter((b) => {
+    if (industryTerm && b.category !== industryTerm) return false;
+    if (!searchTerm) return true;
+    return [b.business_name, b.category, b.asset_size]
       .join(' ')
       .toLowerCase()
-      .includes(searchTerm)
-  );
+      .includes(searchTerm);
+  });
+}
+
+function sortValue(b) {
+  switch (sortKey) {
+    case 'business_name':
+      return (b.business_name || '').toLowerCase();
+    case 'category':
+      return INDUSTRIES.indexOf(b.category);
+    case 'asset_size':
+      return ASSET_SIZES.indexOf(b.asset_size);
+    case 'worker_count':
+      return Number(b.worker_count ?? -1);
+    case 'base_fee':
+      return Number(b.base_fee ?? -1);
+    default:
+      return new Date(b.created_at).getTime();
+  }
+}
+
+function sortedRows(rows) {
+  const dir = sortDir === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const x = sortValue(a);
+    const y = sortValue(b);
+    return (x < y ? -1 : x > y ? 1 : 0) * dir;
+  });
+}
+
+// ---------- summary cards ----------
+function renderStats() {
+  const total = businesses.length;
+  const sumFee = businesses.reduce((s, b) => s + Number(b.base_fee || 0), 0);
+  const avgFee = total ? sumFee / total : 0;
+  const workers = businesses.reduce((s, b) => s + Number(b.worker_count || 0), 0);
+
+  const card = (label, value) =>
+    `<div class="stat"><span>${label}</span><strong>${value}</strong></div>`;
+
+  statsEl.innerHTML =
+    card('Total businesses', total.toLocaleString('en-PH')) +
+    card('Total base fees', php(sumFee)) +
+    card('Average base fee', php(avgFee)) +
+    card('Total workers', workers.toLocaleString('en-PH'));
 }
 
 // ---------- the list ----------
 function renderList() {
-  const rows = visibleBusinesses();
+  renderStats();
 
-  countEl.textContent = searchTerm
+  // show the sort arrow on the active column
+  thead.querySelectorAll('th[data-sort]').forEach((th) => {
+    th.dataset.dir = th.dataset.sort === sortKey ? sortDir : '';
+  });
+
+  if (loading) {
+    list.innerHTML = '<tr><td class="empty" colspan="7">Loading businesses...</td></tr>';
+    return;
+  }
+
+  const rows = sortedRows(visibleBusinesses());
+  const filtering = searchTerm || industryTerm;
+
+  countEl.textContent = filtering
     ? `${rows.length} of ${businesses.length}`
     : `${businesses.length} total`;
 
@@ -314,7 +399,7 @@ function renderList() {
   }
   if (!rows.length) {
     list.innerHTML =
-      '<tr><td class="empty" colspan="7">No businesses match your search.</td></tr>';
+      '<tr><td class="empty" colspan="7">No businesses match your search or filter.</td></tr>';
     return;
   }
 
@@ -323,10 +408,10 @@ function renderList() {
       (b) => `
       <tr class="${String(b.id) === String(editingId) ? 'editing' : ''}">
         <td class="name">${esc(b.business_name)}</td>
-        <td><span class="badge">${esc(b.category)}</span></td>
+        <td><span class="badge b${Math.max(0, INDUSTRIES.indexOf(b.category))}">${esc(b.category)}</span></td>
         <td class="muted">${esc(b.asset_size)}</td>
-        <td class="muted">${b.worker_count == null ? '' : Number(b.worker_count).toLocaleString('en-PH')}</td>
-        <td class="fee">${b.base_fee == null ? '' : php(b.base_fee)}</td>
+        <td class="muted num">${b.worker_count == null ? '' : Number(b.worker_count).toLocaleString('en-PH')}</td>
+        <td class="fee num">${b.base_fee == null ? '' : php(b.base_fee)}</td>
         <td class="muted">${new Date(b.created_at).toLocaleDateString('en-PH')}</td>
         <td class="actions">
           <button type="button" class="btn-edit" data-action="edit" data-id="${esc(b.id)}">Edit</button>
@@ -342,6 +427,8 @@ async function loadBusinesses() {
     .from('business')
     .select('*')
     .order('created_at', { ascending: false });
+
+  loading = false;
 
   if (error) {
     list.innerHTML =
@@ -431,6 +518,7 @@ form.addEventListener('submit', async (e) => {
     base_fee: Number(base_fee),
   };
 
+  submitBtn.disabled = true; // prevent double submits
   let error;
   let updatedRows = null;
 
@@ -445,6 +533,7 @@ form.addEventListener('submit', async (e) => {
     error = res.error;
     updatedRows = res.data;
   }
+  submitBtn.disabled = false;
 
   if (error) {
     if (isDuplicate(error)) {
@@ -473,4 +562,5 @@ form.addEventListener('submit', async (e) => {
   loadBusinesses();
 });
 
+renderList(); // shows the "Loading..." row and empty summary cards
 loadBusinesses();
