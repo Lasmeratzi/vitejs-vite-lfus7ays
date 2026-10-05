@@ -62,6 +62,8 @@ document.querySelector('#app').innerHTML = `
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     th { background: #f0f0f0; color: #222; }
     #msg { margin-top: 10px; font-weight: 600; }
+    #msg.error { color: #b00020; background: #fdecea; padding: 10px; border-radius: 6px; }
+    #msg.success { color: #1b5e20; background: #e8f5e9; padding: 10px; border-radius: 6px; }
     .table-scroll { overflow-x: auto; }
   </style>
 
@@ -115,6 +117,18 @@ const feeInput = document.querySelector('#fee');
 const msg = document.querySelector('#msg');
 const list = document.querySelector('#list');
 
+function showMsg(text, type) {
+  msg.textContent = text;
+  msg.className = type; // 'error' or 'success'
+}
+
+function isDuplicate(error) {
+  return (
+    error.code === '23505' ||
+    /duplicate key|unique constraint/i.test(error.message || '')
+  );
+}
+
 // ---------- load the list ----------
 async function loadBusinesses() {
   const { data, error } = await supabase
@@ -123,9 +137,8 @@ async function loadBusinesses() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    list.innerHTML = `<tr><td colspan="6">Error: ${esc(
-      error.message
-    )}</td></tr>`;
+    list.innerHTML = `<tr><td colspan="6">Could not load businesses. Please refresh the page.</td></tr>`;
+    console.error(error);
     return;
   }
   if (!data.length) {
@@ -151,7 +164,7 @@ async function loadBusinesses() {
 // ---------- save ----------
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  msg.textContent = '';
+  showMsg('', '');
 
   const business_name = nameInput.value.trim();
   const category = categorySel.value;
@@ -166,11 +179,11 @@ form.addEventListener('submit', async (e) => {
     !worker_count ||
     base_fee === ''
   ) {
-    msg.textContent = 'Please fill in all fields.';
+    showMsg('Please fill in all fields.', 'error');
     return;
   }
   if (Number(base_fee) < 0) {
-    msg.textContent = 'Base fee cannot be negative.';
+    showMsg('Base fee cannot be negative.', 'error');
     return;
   }
 
@@ -183,12 +196,20 @@ form.addEventListener('submit', async (e) => {
   });
 
   if (error) {
-    msg.textContent = 'Error: ' + error.message;
+    if (isDuplicate(error)) {
+      showMsg(
+        `"${business_name}" is already in the system. Please use a different business name.`,
+        'error'
+      );
+    } else {
+      showMsg('Something went wrong while saving. Please try again.', 'error');
+      console.error(error);
+    }
     return;
   }
 
   form.reset();
-  msg.textContent = 'Saved!';
+  showMsg('Business saved!', 'success');
   loadBusinesses();
 });
 
