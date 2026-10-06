@@ -97,6 +97,39 @@ main.container {
   display: block;
 }
 
+/* ---------- summary cards ---------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.stat {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--green);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+
+.stat span {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+
+.stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
 /* ---------- cards ---------- */
 .card {
   background: var(--white);
@@ -138,7 +171,7 @@ main.container {
   border-radius: 999px;
 }
 
-/* ---------- toolbar (new + search) ---------- */
+/* ---------- toolbar (search + filter + new) ---------- */
 .toolbar {
   display: flex;
   align-items: center;
@@ -148,6 +181,11 @@ main.container {
 
 .toolbar input {
   flex: 1;
+}
+
+.toolbar select {
+  width: auto;
+  min-width: 190px;
 }
 
 .toolbar button {
@@ -253,6 +291,11 @@ button:active {
 button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(119, 207, 124, 0.45);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -466,6 +509,40 @@ td.empty {
   padding: 34px 14px;
 }
 
+/* sortable headers */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+th.sortable:hover {
+  background: var(--ink-soft);
+}
+
+th.sortable::after {
+  content: ' ↕';
+  opacity: 0.35;
+}
+
+th.sortable[data-dir='asc']::after {
+  content: ' ▲';
+  opacity: 1;
+  color: var(--green);
+}
+
+th.sortable[data-dir='desc']::after {
+  content: ' ▼';
+  opacity: 1;
+  color: var(--green);
+}
+
+/* right-aligned number columns */
+th.num,
+td.num {
+  text-align: right;
+}
+
+/* ---------- industry badges ---------- */
 .badge {
   display: inline-block;
   padding: 3px 10px;
@@ -477,7 +554,13 @@ td.empty {
   white-space: nowrap;
 }
 
-/* row action buttons */
+.badge.b0 { background: #dff3e3; color: #1f5a27; }
+.badge.b1 { background: #e0f0fb; color: #0b4a6f; }
+.badge.b2 { background: #ece7fb; color: #4c3a8a; }
+.badge.b3 { background: #ffe9d6; color: #8a4b12; }
+.badge.b4 { background: #fbe4f0; color: #8a2a5c; }
+
+/* ---------- row action buttons ---------- */
 .actions {
   white-space: nowrap;
   text-align: right;
@@ -512,89 +595,57 @@ td.empty {
   color: var(--white);
   border-color: var(--red);
 }
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 22px;
+
+/* ---------- pagination ---------- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
 }
 
-.stat {
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-left: 4px solid var(--green);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 16px 18px;
+.pager:empty {
+  display: none;
 }
 
-.stat span {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.pager-info {
+  font-size: 13.5px;
   color: var(--muted);
 }
 
-.stat strong {
-  display: block;
-  margin-top: 4px;
-  font-size: 22px;
-  font-weight: 700;
+.pager-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* ---------- toolbar filter ---------- */
-.toolbar select {
-  width: auto;
-  min-width: 190px;
+.pg {
+  min-width: 36px;
+  padding: 7px 12px;
+  font-size: 13.5px;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid #bcd3c3;
 }
 
-/* ---------- sortable headers ---------- */
-th.sortable {
-  cursor: pointer;
-  user-select: none;
+.pg:hover:not(:disabled):not(.active) {
+  background: var(--mint);
 }
 
-th.sortable:hover {
-  background: var(--ink-soft);
+.pg.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--ink);
 }
 
-th.sortable::after {
-  content: ' ↕';
-  opacity: 0.35;
+.pager-gap {
+  color: var(--muted);
+  padding: 0 4px;
 }
 
-th.sortable[data-dir='asc']::after {
-  content: ' ▲';
-  opacity: 1;
-  color: var(--green);
-}
-
-th.sortable[data-dir='desc']::after {
-  content: ' ▼';
-  opacity: 1;
-  color: var(--green);
-}
-
-/* right-aligned number columns */
-th.num,
-td.num {
-  text-align: right;
-}
-
-/* ---------- industry badge colors ---------- */
-.badge.b0 { background: #dff3e3; color: #1f5a27; }
-.badge.b1 { background: #e0f0fb; color: #0b4a6f; }
-.badge.b2 { background: #ece7fb; color: #4c3a8a; }
-.badge.b3 { background: #ffe9d6; color: #8a4b12; }
-.badge.b4 { background: #fbe4f0; color: #8a2a5c; }
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
+/* ---------- narrow windows ---------- */
 @media (max-width: 900px) {
   .stats {
     grid-template-columns: repeat(2, 1fr);

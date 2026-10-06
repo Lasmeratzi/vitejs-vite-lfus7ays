@@ -92,6 +92,7 @@ document.querySelector('#app').innerHTML = `
           <tbody id="list"></tbody>
         </table>
       </div>
+      <div class="pager" id="pager"></div>
     </section>
   </main>
 
@@ -166,6 +167,9 @@ const industryFilter = document.querySelector('#industryFilter');
 const newBtn = document.querySelector('#newBtn');
 const closeBtn = document.querySelector('#closeBtn');
 const toastEl = document.querySelector('#toast');
+const pagerEl = document.querySelector('#pager');
+
+const PAGE_SIZE = 10; // businesses shown per page
 
 let businesses = []; // all rows from the database
 let editingId = null; // null = adding, otherwise the id being edited
@@ -173,6 +177,7 @@ let searchTerm = '';
 let industryTerm = '';
 let sortKey = 'created_at';
 let sortDir = 'desc';
+let page = 1;
 let loading = true;
 let toastTimer;
 
@@ -296,11 +301,13 @@ modal.addEventListener('close', () => {
 // ---------- search, filter, sort ----------
 searchInput.addEventListener('input', () => {
   searchTerm = searchInput.value.trim().toLowerCase();
+  page = 1;
   renderList();
 });
 
 industryFilter.addEventListener('change', () => {
   industryTerm = industryFilter.value;
+  page = 1;
   renderList();
 });
 
@@ -314,6 +321,7 @@ thead.addEventListener('click', (e) => {
     sortKey = key;
     sortDir = key === 'base_fee' || key === 'created_at' ? 'desc' : 'asc';
   }
+  page = 1;
   renderList();
 });
 
@@ -382,24 +390,31 @@ function renderList() {
 
   if (loading) {
     list.innerHTML = '<tr><td class="empty" colspan="7">Loading businesses...</td></tr>';
+    pagerEl.innerHTML = '';
     return;
   }
 
-  const rows = sortedRows(visibleBusinesses());
+  const allRows = sortedRows(visibleBusinesses());
+  const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
+  if (page > totalPages) page = totalPages; // e.g. after deleting the last item on a page
+  const start = (page - 1) * PAGE_SIZE;
+  const rows = allRows.slice(start, start + PAGE_SIZE);
   const filtering = searchTerm || industryTerm;
 
   countEl.textContent = filtering
-    ? `${rows.length} of ${businesses.length}`
+    ? `${allRows.length} of ${businesses.length}`
     : `${businesses.length} total`;
 
   if (!businesses.length) {
     list.innerHTML =
       '<tr><td class="empty" colspan="7">No businesses yet. Click “+ New Business” to add your first one.</td></tr>';
+    pagerEl.innerHTML = '';
     return;
   }
-  if (!rows.length) {
+  if (!allRows.length) {
     list.innerHTML =
       '<tr><td class="empty" colspan="7">No businesses match your search or filter.</td></tr>';
+    pagerEl.innerHTML = '';
     return;
   }
 
@@ -420,7 +435,56 @@ function renderList() {
       </tr>`
     )
     .join('');
+
+  renderPager(allRows.length, totalPages, start, rows.length);
 }
+
+// ---------- pagination ----------
+function pageNumbers(current, last) {
+  if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1);
+  const set = new Set([1, last, current - 1, current, current + 1]);
+  if (current <= 3) [2, 3, 4].forEach((n) => set.add(n));
+  if (current >= last - 2) [last - 1, last - 2, last - 3].forEach((n) => set.add(n));
+  const nums = [...set].filter((n) => n >= 1 && n <= last).sort((a, b) => a - b);
+  const out = [];
+  nums.forEach((n, i) => {
+    if (i && n - nums[i - 1] > 1) out.push('…');
+    out.push(n);
+  });
+  return out;
+}
+
+function renderPager(total, totalPages, start, shown) {
+  const info = `<span class="pager-info">Showing ${start + 1}–${start + shown} of ${total}</span>`;
+
+  if (totalPages <= 1) {
+    pagerEl.innerHTML = info;
+    return;
+  }
+
+  const nums = pageNumbers(page, totalPages)
+    .map((n) =>
+      n === '…'
+        ? '<span class="pager-gap">…</span>'
+        : `<button type="button" class="pg ${n === page ? 'active' : ''}" data-page="${n}">${n}</button>`
+    )
+    .join('');
+
+  pagerEl.innerHTML = `
+    ${info}
+    <div class="pager-buttons">
+      <button type="button" class="pg" data-page="${page - 1}" ${page === 1 ? 'disabled' : ''}>‹ Previous</button>
+      ${nums}
+      <button type="button" class="pg" data-page="${page + 1}" ${page === totalPages ? 'disabled' : ''}>Next ›</button>
+    </div>`;
+}
+
+pagerEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-page]');
+  if (!btn || btn.disabled) return;
+  page = Number(btn.dataset.page);
+  renderList();
+});
 
 async function loadBusinesses() {
   const { data, error } = await supabase
