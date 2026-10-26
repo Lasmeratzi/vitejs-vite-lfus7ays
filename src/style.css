@@ -815,3 +815,40 @@ td.num {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ---------- suggestions while typing ---------- */
+.sg-wrap {
+  position: relative;
+}
+
+.sg-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 30;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--white);
+  border: 1px solid #bcd3c3;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(8, 13, 8, 0.15);
+}
+
+.sg-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+
+.sg-item b {
+  font-weight: 700;
+  color: #1f6b27;
+}
+
+.sg-item:hover,
+.sg-item.active {
+  background: var(--mint);
+}

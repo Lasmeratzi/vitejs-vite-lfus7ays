@@ -18,8 +18,15 @@ const APP_TYPES = ['NEW', 'RENEW', 'RETIRE'];
 const SURCHARGE_TYPES = ['Business', 'Motorcab'];
 const APP_BADGE = { NEW: 'b0', RENEW: 'b1', RETIRE: 'b3' };
 
+// year dropdowns: newest first
+const THIS_YEAR = new Date().getFullYear();
+const yearRange = (from, to) =>
+  Array.from({ length: from - to + 1 }, (_, i) => String(from - i));
+const APPLICABLE_YEARS = yearRange(THIS_YEAR, THIS_YEAR - 5); // current + previous 5
+const STARTED_YEARS = yearRange(THIS_YEAR, 1950); // current back to 1950
+
 // ---------- form fields ----------
-// kind: text (default) | select | lookup | year | phone | email | date
+// kind: text (default) | select | lookup | phone | email | date
 const GENERAL = [
   { key: 'business_name', label: 'Business name', full: true },
   { key: 'reg_trade_name', label: 'Registered trade name' },
@@ -32,8 +39,8 @@ const GENERAL = [
   { key: 'app_type', label: 'Application type', kind: 'select', options: APP_TYPES },
   { key: 'app_no', label: 'App no.' },
   { key: 'bin', label: 'BIN' },
-  { key: 'applicable_year', label: 'Applicable year', kind: 'year' },
-  { key: 'year_started', label: 'Year started', kind: 'year' },
+  { key: 'applicable_year', label: 'Applicable year', kind: 'select', options: APPLICABLE_YEARS },
+  { key: 'year_started', label: 'Year started', kind: 'select', options: STARTED_YEARS },
   { key: 'date_created', label: 'Date created', kind: 'date' },
   { key: 'mobile_number', label: 'Mobile number', kind: 'phone' },
   { key: 'phone_number', label: 'Phone number', kind: 'phone' },
@@ -109,8 +116,6 @@ function fieldHtml(f) {
     control = `<select id="${id}">${options(f.options, 'Select')}</select>`;
   } else {
     const attrs = [];
-    if (f.kind === 'lookup') attrs.push(`list="dl_${f.list}"`);
-    if (f.kind === 'year') attrs.push('inputmode="numeric" maxlength="4" placeholder="e.g. 2026"');
     if (f.kind === 'phone') attrs.push('inputmode="tel"');
     if (f.readonly) attrs.push('readonly');
     const type = f.kind === 'date' ? 'date' : f.kind === 'email' ? 'email' : 'text';
@@ -256,10 +261,6 @@ document.querySelector('#app').innerHTML = `
         <div id="msg"></div>
       </div>
     </form>
-
-    <datalist id="dl_org_types"></datalist>
-    <datalist id="dl_lines_of_business"></datalist>
-    <datalist id="dl_sanitary_permits"></datalist>
   </dialog>
 
   <div id="toast"></div>
@@ -378,7 +379,7 @@ function notify(text, type) {
   toastTimer = setTimeout(() => (toastEl.className = ''), 3500);
 }
 
-// ---------- lookups: load, suggest, save new ones ----------
+// ---------- lookups: load, find, save new ones ----------
 async function loadLookups() {
   for (const table of Object.keys(lookups)) {
     const { data, error } = await supabase.from(table).select('*').order('name');
@@ -388,16 +389,7 @@ async function loadLookups() {
     }
     lookups[table] = data;
   }
-  fillDatalists();
   refreshHints();
-}
-
-function fillDatalists() {
-  for (const table of Object.keys(lookups)) {
-    document.querySelector('#dl_' + table).innerHTML = lookups[table]
-      .map((r) => `<option value="${esc(r.name)}"></option>`)
-      .join('');
-  }
 }
 
 const findLookup = (table, name) =>
@@ -426,7 +418,6 @@ async function ensureLookup(table, name, extra = {}) {
 
   lookups[table].push(data);
   lookups[table].sort((a, b) => a.name.localeCompare(b.name));
-  fillDatalists();
   return data;
 }
 
@@ -441,6 +432,15 @@ function refreshHints() {
   });
 }
 
+// fill the sanitary permit fee box from the permit's saved fee
+function applyPermitFee(permit) {
+  if (!permit || !(Number(permit.fee) > 0)) return;
+  const input = el('sanitary_permit_fee');
+  input.value = Number(permit.fee).toFixed(2);
+  input.classList.remove('invalid');
+  updateGhost(input);
+}
+
 LOOKUP_FIELDS.forEach((f) => {
   el(f.key).addEventListener('input', () => {
     // known line of business -> fill in the sanitary permit connected to it
@@ -450,12 +450,118 @@ LOOKUP_FIELDS.forEach((f) => {
         const permit = lookups.sanitary_permits.find(
           (p) => p.id === line.sanitary_permit_id
         );
-        if (permit) el('sanitary_permit').value = permit.name;
+        if (permit) {
+          el('sanitary_permit').value = permit.name;
+          applyPermitFee(permit);
+        }
       }
+    }
+    // known sanitary permit -> fill in its fee
+    if (f.key === 'sanitary_permit') {
+      applyPermitFee(findLookup('sanitary_permits', el('sanitary_permit').value));
     }
     refreshHints();
   });
 });
+
+// ---------- suggestions while typing (matches the start of the entry) ----------
+function uniqueValues(key) {
+  const seen = new Map();
+  businesses.forEach((b) => {
+    const v = norm(b[key]);
+    if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v);
+  });
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+function attachSuggest(input, getItems) {
+  const wrap = document.createElement('div');
+  wrap.className = 'sg-wrap';
+  input.before(wrap);
+  const box = document.createElement('div');
+  box.className = 'sg-list';
+  box.hidden = true;
+  wrap.append(input, box);
+
+  let shown = [];
+  let active = -1;
+  let picking = false;
+
+  const hide = () => {
+    box.hidden = true;
+    active = -1;
+  };
+
+  const paint = () =>
+    [...box.children].forEach((c, i) => c.classList.toggle('active', i === active));
+
+  const show = () => {
+    const typed = norm(input.value);
+    const t = typed.toLowerCase();
+    shown = getItems()
+      .filter((x) => x.toLowerCase().startsWith(t) && x.toLowerCase() !== t)
+      .slice(0, 8);
+    if (!shown.length) return hide();
+    box.innerHTML = shown
+      .map(
+        (x, i) =>
+          `<div class="sg-item" data-i="${i}"><b>${esc(x.slice(0, typed.length))}</b>${esc(x.slice(typed.length))}</div>`
+      )
+      .join('');
+    box.hidden = false;
+    active = -1;
+  };
+
+  const pick = (i) => {
+    input.value = shown[i];
+    hide();
+    picking = true;
+    input.dispatchEvent(new Event('input', { bubbles: true })); // runs the other field rules
+    picking = false;
+  };
+
+  input.addEventListener('input', () => {
+    if (!picking) show();
+  });
+  input.addEventListener('focus', show);
+  input.addEventListener('blur', hide);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (box.hidden) show();
+      if (!shown.length) return;
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      active = (active + step + shown.length) % shown.length;
+      paint();
+    } else if (e.key === 'Enter' && !box.hidden && active >= 0) {
+      e.preventDefault();
+      pick(active);
+    } else if (e.key === 'Escape' && !box.hidden) {
+      e.preventDefault();
+      e.stopPropagation();
+      hide();
+    }
+  });
+
+  // mousedown (not click), so the box doesn't vanish before the pick
+  box.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const item = e.target.closest('.sg-item');
+    if (item) pick(Number(item.dataset.i));
+  });
+}
+
+// which boxes suggest, and from where. To add another box, add one line here.
+const SUGGESTIONS = {
+  owner_name: () => uniqueValues('owner_name'),
+  assessor: () => uniqueValues('assessor'),
+  approver: () => uniqueValues('approver'),
+  org_type: () => lookups.org_types.map((r) => r.name),
+  line_of_business: () => lookups.lines_of_business.map((r) => r.name),
+  sanitary_permit: () => lookups.sanitary_permits.map((r) => r.name),
+};
+Object.entries(SUGGESTIONS).forEach(([key, getItems]) => attachSuggest(el(key), getItems));
 
 // ---------- input rules ----------
 function updateTotal() {
@@ -467,12 +573,6 @@ function updateTotal() {
   el(k).addEventListener('input', () => {
     el(k).value = el(k).value.replace(/\D/g, '').slice(0, 6);
     updateTotal();
-  });
-});
-
-GENERAL.filter((f) => f.kind === 'year').forEach((f) => {
-  el(f.key).addEventListener('input', () => {
-    el(f.key).value = el(f.key).value.replace(/\D/g, '').slice(0, 4);
   });
 });
 
@@ -531,9 +631,18 @@ form.addEventListener('change', (e) => e.target.classList.remove('invalid'));
 function setDefaults() {
   el('date_created').value = todayLocal();
   el('created_by').value = currentEmail;
+  el('applicable_year').value = String(THIS_YEAR);
   updateTotal();
   updateGhosts();
   refreshHints();
+}
+
+// an older record may use a year outside the dropdown range, so add it
+function ensureOption(select, value) {
+  const v = String(value ?? '');
+  if (v && ![...select.options].some((o) => o.value === v)) {
+    select.add(new Option(v, v));
+  }
 }
 
 function fillForm(b) {
@@ -543,6 +652,7 @@ function fillForm(b) {
     line_of_business: b.line,
     sanitary_permit: b.permit,
   };
+  ['applicable_year', 'year_started'].forEach((k) => ensureOption(el(k), b[k]));
   [...GENERAL, PERMIT_FIELD].forEach((f) => {
     el(f.key).value = values[f.key] ?? '';
   });
@@ -893,11 +1003,6 @@ function validate(v) {
   if (!v.sanitary_permit) bad.push('sanitary_permit');
   if (bad.length) return { keys: bad, text: 'Please fill in the highlighted fields.' };
 
-  const yearOk = (y) => /^\d{4}$/.test(y) && y >= 1900 && y <= 2100;
-  if (!yearOk(v.applicable_year))
-    return { keys: ['applicable_year'], text: 'Enter a valid 4-digit applicable year.' };
-  if (!yearOk(v.year_started))
-    return { keys: ['year_started'], text: 'Enter a valid 4-digit year started.' };
   if (v.email && !/^\S+@\S+\.\S+$/.test(v.email))
     return { keys: ['email'], text: 'Enter a valid email address, or leave it empty.' };
   if (num(v.surcharge_amount) > 0 && !v.surcharge_type)
@@ -922,7 +1027,20 @@ form.addEventListener('submit', async (e) => {
   try {
     // save any new org type / line of business / sanitary permit
     const org = await ensureLookup('org_types', v.org_type);
-    const permit = await ensureLookup('sanitary_permits', v.sanitary_permit);
+    const permit = await ensureLookup('sanitary_permits', v.sanitary_permit, {
+      fee: num(v.sanitary_permit_fee),
+    });
+
+    // an older permit with no saved fee learns it from the first fee entered
+    if (Number(permit.fee || 0) === 0 && num(v.sanitary_permit_fee) > 0) {
+      const { error: feeError } = await supabase
+        .from('sanitary_permits')
+        .update({ fee: num(v.sanitary_permit_fee) })
+        .eq('id', permit.id);
+      if (feeError) throw feeError;
+      permit.fee = num(v.sanitary_permit_fee);
+    }
+
     const line = await ensureLookup('lines_of_business', v.line_of_business, {
       sanitary_permit_id: permit.id,
     });
