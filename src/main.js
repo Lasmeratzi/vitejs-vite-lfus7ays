@@ -262,6 +262,18 @@ document.querySelector('#app').innerHTML = `
       </div>
     </form>
   </dialog>
+  
+  <dialog id="viewModal">
+  <div class="modal-head">
+    <h2 id="viewTitle">Business details</h2>
+    <button type="button" id="viewCloseBtn" class="icon-btn" aria-label="Close">×</button>
+  </div>
+  <div id="viewBody" class="view-body"></div>
+  <div class="view-actions">
+    <button type="button" id="viewEditBtn" class="btn-edit">Edit</button>
+    <button type="button" id="viewDoneBtn" class="btn-ghost">Close</button>
+  </div>
+</dialog>
 
   <div id="toast"></div>
 `;
@@ -295,6 +307,10 @@ const newBtn = document.querySelector('#newBtn');
 const closeBtn = document.querySelector('#closeBtn');
 const toastEl = document.querySelector('#toast');
 const pagerEl = document.querySelector('#pager');
+const viewModal = document.querySelector('#viewModal');
+const viewBody = document.querySelector('#viewBody');
+const viewTitle = document.querySelector('#viewTitle');
+let viewingId = null;
 
 const PAGE_SIZE = 10; // businesses shown per page
 
@@ -331,6 +347,7 @@ function showApp(session) {
     businesses = [];
     editingId = null;
     if (modal.open) modal.close();
+    if (viewModal.open) viewModal.close();
     appView.hidden = true;
     loginView.hidden = false;
   }
@@ -861,9 +878,10 @@ function renderList() {
         <td class="fee num">${php(feesOf(b))}</td>
         <td class="muted">${fmtDate(b.date_created)}</td>
         <td class="actions">
-          <button type="button" class="btn-edit" data-action="edit" data-id="${esc(b.id)}">Edit</button>
-          <button type="button" class="btn-delete" data-action="delete" data-id="${esc(b.id)}">Delete</button>
-        </td>
+        <button type="button" class="btn-view" data-action="view" data-id="${esc(b.id)}">View</button>
+        <button type="button" class="btn-edit" data-action="edit" data-id="${esc(b.id)}">Edit</button>
+        <button type="button" class="btn-delete" data-action="delete" data-id="${esc(b.id)}">Delete</button>
+      </td>
       </tr>`
     )
     .join('');
@@ -947,6 +965,100 @@ async function loadAll() {
   await loadLookups();
   await loadBusinesses();
 }
+// ---------- view details (read-only pop-up) ----------
+// empty values and the "0" placeholder show as a dash
+const dash = (v) =>
+  v === null || v === undefined || String(v).trim() === '' || String(v) === '0'
+    ? '—'
+    : esc(v);
+
+function viewBusiness(b) {
+  viewingId = b.id;
+  viewTitle.textContent = b.business_name;
+
+  const item = (label, value, full) =>
+    `<div class="v-item${full ? ' full' : ''}"><span>${label}</span><strong>${value}</strong></div>`;
+
+  const feeRow = (label, amount) =>
+    `<div class="v-fee"><span>${label}</span><strong>${php(amount)}</strong></div>`;
+
+  const surchargeLabel = b.surcharge_type ? `Surcharge (${esc(b.surcharge_type)})` : 'Surcharge';
+
+  viewBody.innerHTML = `
+    <h3 class="section">General information</h3>
+    <div class="v-grid">
+      ${item('Business name', dash(b.business_name), true)}
+      ${item('Registered trade name', dash(b.reg_trade_name))}
+      ${item('Owner', dash(b.owner_name))}
+      ${item('Type of business', dash(b.business_type))}
+      ${item('Business address', dash(b.business_address), true)}
+      ${item('Owner address', dash(b.owner_address), true)}
+      ${item('Org type', dash(b.org_type))}
+      ${item('Line of business', dash(b.line))}
+      ${item('Sanitary permit', dash(b.permit))}
+    </div>
+
+    <h3 class="section">Application</h3>
+    <div class="v-grid">
+      ${item('Application type', `<span class="badge ${APP_BADGE[b.app_type] || 'b0'}">${esc(b.app_type)}</span>`)}
+      ${item('App no.', dash(b.app_no))}
+      ${item('BIN', dash(b.bin))}
+      ${item('Applicable year', dash(b.applicable_year))}
+      ${item('Year started', dash(b.year_started))}
+      ${item('Date created', dash(fmtDate(b.date_created)))}
+    </div>
+
+    <h3 class="section">Contact</h3>
+    <div class="v-grid">
+      ${item('Mobile number', dash(b.mobile_number))}
+      ${item('Phone number', dash(b.phone_number))}
+      ${item('Email', dash(b.email))}
+    </div>
+
+    <h3 class="section">Workers</h3>
+    <div class="v-grid">
+      ${item('Male', Number(b.male_workers || 0).toLocaleString('en-PH'))}
+      ${item('Female', Number(b.female_workers || 0).toLocaleString('en-PH'))}
+      ${item('Total', workersOf(b).toLocaleString('en-PH'))}
+    </div>
+
+    <h3 class="section">Fees</h3>
+    <div class="v-fees">
+      ${feeRow('Sputum', b.sputum_fee || 0)}
+      ${feeRow('Stool', b.stool_fee || 0)}
+      ${feeRow('Health card', b.health_card_fee || 0)}
+      ${feeRow('Sanitary permit', b.sanitary_permit_fee || 0)}
+      ${feeRow(surchargeLabel, b.surcharge_amount || 0)}
+      <div class="v-fee total"><span>Total fees</span><strong>${php(feesOf(b))}</strong></div>
+    </div>
+
+    <h3 class="section">Record</h3>
+    <div class="v-grid">
+      ${item('Assessor', dash(b.assessor))}
+      ${item('Approver', dash(b.approver))}
+      ${item('Created by', dash(b.created_by))}
+      ${item('Saved on', b.created_at ? esc(new Date(b.created_at).toLocaleString('en-PH')) : '—')}
+    </div>
+  `;
+
+  viewBody.scrollTop = 0;
+  viewModal.showModal();
+}
+
+document.querySelector('#viewCloseBtn').addEventListener('click', () => viewModal.close());
+document.querySelector('#viewDoneBtn').addEventListener('click', () => viewModal.close());
+
+viewModal.addEventListener('click', (e) => {
+  if (e.target === viewModal) viewModal.close();
+});
+
+// "Edit" inside the details pop-up closes it and opens the edit form
+document.querySelector('#viewEditBtn').addEventListener('click', () => {
+  const b = businesses.find((x) => String(x.id) === String(viewingId));
+  viewModal.close();
+  if (b) startEdit(b);
+});
+
 
 // ---------- edit / delete buttons ----------
 list.addEventListener('click', async (e) => {
@@ -955,6 +1067,11 @@ list.addEventListener('click', async (e) => {
 
   const b = businesses.find((x) => String(x.id) === btn.dataset.id);
   if (!b) return;
+
+  if (btn.dataset.action === 'view') {
+    viewBusiness(b);
+    return;
+  }
 
   if (btn.dataset.action === 'edit') {
     startEdit(b);

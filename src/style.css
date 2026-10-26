@@ -852,3 +852,87 @@ td.num {
 .sg-item.active {
   background: var(--mint);
 }
+
+/* ---------- View button ---------- */
+.btn-view {
+  background: #e4f6e6;
+  color: #1f5a27;
+  border-color: #bfe5c3;
+}
+
+.btn-view:hover {
+  background: var(--green);
+  color: var(--ink);
+  border-color: var(--green);
+}
+
+/* ---------- details pop-up ---------- */
+.view-body {
+  padding: 0 28px 8px;
+}
+
+.view-body .section:first-child {
+  margin-top: 18px;
+}
+
+.v-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px 18px;
+}
+
+.v-item.full {
+  grid-column: 1 / -1;
+}
+
+.v-item span {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+}
+
+.v-item strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.v-fees {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.v-fee {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.v-fee:first-child {
+  border-top: 0;
+}
+
+.v-fee.total {
+  background: var(--mint);
+  font-size: 16px;
+}
+
+.view-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 16px 28px;
+  background: var(--white);
+  border-top: 1px solid var(--line);
+}
