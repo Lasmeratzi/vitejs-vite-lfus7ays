@@ -1,0 +1,318 @@
+/* =========================================================
+   Theme toggle button (used in both modes)
+   ========================================================= */
+   .login-wrap {
+    position: relative;
+  }
+  
+  .theme-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #eefbf4;
+    border: 1px solid #3a4a3c;
+  }
+  
+  .theme-toggle:hover {
+    background: #1b251c;
+  }
+  
+  .theme-toggle svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .theme-toggle .icon-sun {
+    display: none;
+  }
+  
+  [data-theme='dark'] .theme-toggle .icon-sun {
+    display: block;
+  }
+  
+  [data-theme='dark'] .theme-toggle .icon-moon {
+    display: none;
+  }
+  
+  .theme-toggle.login-theme {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+  
+  /* =========================================================
+     Dark mode
+     ========================================================= */
+  [data-theme='dark'] {
+    color-scheme: dark; /* dark scrollbars, date picker, dropdown lists */
+  
+    --bg: #0a100b;
+    --text: #eefbf4;
+    --field: #0d150e;
+    --field-border: #35503b;
+    --field-border-hover: #4f7a58;
+    --placeholder: #6b8574;
+  
+    /* the existing styles use these names, so changing them here
+       re-colors cards, borders, hover areas, and text in one place */
+    --white: #121b13; /* cards, pop-ups, table surface */
+    --mint: #1a271c; /* hover and soft backgrounds */
+    --line: #25382a;
+    --muted: #8da597;
+    --ink-soft: #c5d6ca;
+  
+    --red-soft: rgba(214, 69, 69, 0.16);
+    --red-ink: #ff9d9d;
+    --yellow-soft: rgba(242, 184, 59, 0.14);
+    --yellow-ink: #f5d27a;
+    --ok-soft: rgba(119, 207, 124, 0.14);
+    --ok-ink: #8fe296;
+  
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+  
+  /* ---------- page and top bar ---------- */
+  [data-theme='dark'] body {
+    background: var(--bg);
+    color: var(--text);
+  }
+  
+  [data-theme='dark'] .topbar {
+    background: #050805;
+  }
+  
+  [data-theme='dark'] .login-wrap {
+    background: #050805;
+  }
+  
+  [data-theme='dark'] .brand h1 {
+    color: #eefbf4;
+  }
+  
+  [data-theme='dark'] .btn-light {
+    color: #eefbf4;
+  }
+  
+  [data-theme='dark'] .btn-light:hover {
+    background: #1d2b1f;
+  }
+  
+  /* ---------- form fields ---------- */
+  [data-theme='dark'] input,
+  [data-theme='dark'] select {
+    background: var(--field);
+    color: var(--text);
+    border-color: var(--field-border);
+  }
+  
+  [data-theme='dark'] input::placeholder {
+    color: var(--placeholder);
+  }
+  
+  [data-theme='dark'] option {
+    background: #121b13;
+    color: #eefbf4;
+  }
+  
+  [data-theme='dark'] input:hover,
+  [data-theme='dark'] select:hover {
+    border-color: var(--field-border-hover);
+  }
+  
+  [data-theme='dark'] input:focus,
+  [data-theme='dark'] select:focus {
+    border-color: var(--green-hover);
+    box-shadow: 0 0 0 3px rgba(119, 207, 124, 0.3);
+  }
+  
+  [data-theme='dark'] input[readonly] {
+    background: var(--bg);
+    color: var(--ink-soft);
+  }
+  
+  [data-theme='dark'] input.invalid,
+  [data-theme='dark'] select.invalid {
+    border-color: var(--red);
+    background: rgba(214, 69, 69, 0.08);
+  }
+  
+  [data-theme='dark'] input.invalid:focus,
+  [data-theme='dark'] select.invalid:focus {
+    box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.3);
+  }
+  
+  /* browser auto-fill (saved passwords) */
+  [data-theme='dark'] input:-webkit-autofill {
+    -webkit-text-fill-color: #eefbf4;
+    caret-color: #eefbf4;
+    box-shadow: 0 0 0 1000px #0d150e inset;
+  }
+  
+  [data-theme='dark'] .hint,
+  [data-theme='dark'] .sg-item b {
+    color: var(--ok-ink);
+  }
+  
+  [data-theme='dark'] .fee-ghost {
+    color: var(--placeholder);
+  }
+  
+  [data-theme='dark'] .count {
+    color: var(--text);
+  }
+  
+  /* ---------- buttons ---------- */
+  [data-theme='dark'] .btn-ghost {
+    border-color: var(--field-border);
+  }
+  
+  [data-theme='dark'] .btn-edit {
+    border-color: rgba(242, 184, 59, 0.4);
+  }
+  
+  [data-theme='dark'] .btn-edit:hover {
+    border-color: var(--yellow);
+  }
+  
+  [data-theme='dark'] .btn-delete {
+    border-color: rgba(255, 120, 120, 0.4);
+  }
+  
+  [data-theme='dark'] .btn-delete:hover {
+    color: #ffffff;
+    border-color: var(--red);
+  }
+  
+  [data-theme='dark'] .btn-view {
+    background: var(--ok-soft);
+    color: var(--ok-ink);
+    border-color: rgba(119, 207, 124, 0.4);
+  }
+  
+  [data-theme='dark'] .btn-view:hover {
+    background: var(--green);
+    color: var(--ink);
+    border-color: var(--green);
+  }
+  
+  /* ---------- pop-ups ---------- */
+  [data-theme='dark'] dialog {
+    color: var(--text);
+    border: 1px solid var(--line);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+  
+  [data-theme='dark'] dialog::backdrop {
+    background: rgba(0, 0, 0, 0.7);
+  }
+  
+  [data-theme='dark'] .icon-btn:hover {
+    color: var(--text);
+  }
+  
+  /* ---------- messages ---------- */
+  [data-theme='dark'] #msg.error,
+  [data-theme='dark'] #lobMsg.error {
+    background: var(--red-soft);
+    color: var(--red-ink);
+    border-color: rgba(255, 120, 120, 0.35);
+  }
+  
+  [data-theme='dark'] #msg.success,
+  [data-theme='dark'] #lobMsg.success {
+    background: var(--ok-soft);
+    color: var(--ok-ink);
+    border-color: rgba(119, 207, 124, 0.35);
+  }
+  
+  /* the toast floats over the page, so it needs solid colors */
+  [data-theme='dark'] #toast.error {
+    background: #2b1618;
+    color: var(--red-ink);
+    border-color: rgba(255, 120, 120, 0.4);
+  }
+  
+  [data-theme='dark'] #toast.success {
+    background: #12281a;
+    color: var(--ok-ink);
+    border-color: rgba(119, 207, 124, 0.4);
+  }
+  
+  [data-theme='dark'] #editBanner,
+  [data-theme='dark'] #lobBanner {
+    background: var(--yellow-soft);
+    border-color: rgba(242, 184, 59, 0.35);
+    border-left-color: var(--yellow);
+    color: var(--yellow-ink);
+  }
+  
+  /* ---------- table ---------- */
+  [data-theme='dark'] thead th {
+    background: #0b140c;
+    color: #eefbf4;
+  }
+  
+  [data-theme='dark'] th.sortable:hover {
+    background: #16231a;
+  }
+  
+  [data-theme='dark'] tbody tr:hover td {
+    background: #17241a;
+  }
+  
+  [data-theme='dark'] tbody tr.editing td {
+    background: var(--yellow-soft);
+  }
+  
+  [data-theme='dark'] td.muted {
+    color: var(--text);
+  }
+  
+  /* ---------- badges ---------- */
+  [data-theme='dark'] .badge,
+  [data-theme='dark'] .badge.b0 {
+    background: rgba(119, 207, 124, 0.16);
+    color: #8fe296;
+  }
+  
+  [data-theme='dark'] .badge.b1 {
+    background: rgba(88, 170, 230, 0.16);
+    color: #8cc8f2;
+  }
+  
+  [data-theme='dark'] .badge.b2 {
+    background: rgba(150, 125, 230, 0.18);
+    color: #bfaef2;
+  }
+  
+  [data-theme='dark'] .badge.b3 {
+    background: rgba(240, 150, 80, 0.16);
+    color: #f5b17a;
+  }
+  
+  [data-theme='dark'] .badge.b4 {
+    background: rgba(230, 100, 160, 0.16);
+    color: #f2a3c7;
+  }
+  
+  /* ---------- pagination ---------- */
+  [data-theme='dark'] .pg {
+    color: var(--text);
+    border-color: var(--field-border);
+  }
+  
+  [data-theme='dark'] .pg.active {
+    background: var(--green);
+    border-color: var(--green);
+    color: var(--ink);
+  }
+  
+  /* ---------- suggestions ---------- */
+  [data-theme='dark'] .sg-list {
+    border-color: var(--field-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }

@@ -1,4 +1,6 @@
 import './style.css';
+import './theme.css';
+import { themeButtonHtml, initTheme } from './theme.js';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -145,6 +147,7 @@ const lookups = { org_types: [], sanitary_permits: [], lines_of_business: [] };
 // ---------- page ----------
 document.querySelector('#app').innerHTML = `
   <div id="loginView" class="login-wrap" hidden>
+  ${themeButtonHtml('login-theme')}
     <form id="loginForm" class="login-card" novalidate>
       <img class="login-logo" src="/etracslogo.svg" alt="ETRACS logo" />
       <h1>ETRACS Pricing Tracker</h1>
@@ -172,9 +175,10 @@ document.querySelector('#app').innerHTML = `
           </div>
         </div>
         <div class="userbox">
-          <span id="userEmail"></span>
-          <button type="button" id="logoutBtn" class="btn-light">Sign out</button>
-        </div>
+        <span id="userEmail"></span>
+        ${themeButtonHtml()}
+        <button type="button" id="logoutBtn" class="btn-light">Sign out</button>
+      </div>
       </div>
     </header>
 
@@ -1600,6 +1604,7 @@ lobModal.addEventListener('close', () => {
 
 // ---------- start ----------
 setDefaults();
+initTheme();
 renderList();
 supabase.auth.onAuthStateChange((_event, session) => showApp(session));
 supabase.auth.getSession().then(({ data }) => showApp(data.session));
