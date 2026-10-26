@@ -185,6 +185,7 @@ document.querySelector('#app').innerHTML = `
         <div class="toolbar">
           <input id="search" type="search" placeholder="Search by business, owner, BIN, app no., or line of business..." autocomplete="off" />
           <select id="appFilter" aria-label="Filter by application type">${options(APP_TYPES, 'All application types')}</select>
+          <button type="button" id="lobBtn" class="btn-ghost">Lines of business</button>
           <button type="button" id="newBtn" class="btn-primary">+ New Business</button>
         </div>
 
@@ -275,6 +276,55 @@ document.querySelector('#app').innerHTML = `
   </div>
 </dialog>
 
+<dialog id="lobModal">
+<div class="modal-head">
+  <h2>Lines of business</h2>
+  <button type="button" id="lobCloseBtn" class="icon-btn" aria-label="Close">×</button>
+</div>
+
+<form id="lobForm" novalidate>
+  <div id="lobBanner"></div>
+  <div class="lob-grid">
+    <div class="field">
+      <label for="f_lob_name">Line of business <span class="req">*</span></label>
+      <input id="f_lob_name" type="text" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="f_lob_permit">Sanitary permit <span class="req">*</span></label>
+      <input id="f_lob_permit" type="text" autocomplete="off" />
+      <small class="hint" id="lobPermitHint"></small>
+    </div>
+    <div class="field">
+      <label for="f_lob_fee">Sanitary permit fee (₱)</label>
+      <div class="fee-wrap">
+        <input id="f_lob_fee" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" />
+        <div class="fee-ghost"><span class="typed"></span><span class="suffix"></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="lob-actions">
+    <button type="submit" id="lobSubmit" class="btn-primary">Add line of business</button>
+    <button type="button" id="lobCancel" class="btn-ghost" hidden>Cancel edit</button>
+    <div id="lobMsg"></div>
+  </div>
+</form>
+
+<div class="table-scroll lob-list">
+  <table>
+    <thead>
+      <tr>
+        <th>Line of business</th>
+        <th>Sanitary permit</th>
+        <th class="num">Fee</th>
+        <th class="num">Used by</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="lobList"></tbody>
+  </table>
+</div>
+</dialog>
+
   <div id="toast"></div>
 `;
 
@@ -347,6 +397,7 @@ function showApp(session) {
     businesses = [];
     editingId = null;
     if (modal.open) modal.close();
+    if (lobModal.open) lobModal.close();
     if (viewModal.open) viewModal.close();
     appView.hidden = true;
     loginView.hidden = false;
@@ -1249,6 +1300,302 @@ form.addEventListener('submit', async (e) => {
   } finally {
     submitBtn.disabled = false;
   }
+});
+
+// ---------- lines of business manager ----------
+const lobModal = document.querySelector('#lobModal');
+const lobForm = document.querySelector('#lobForm');
+const lobList = document.querySelector('#lobList');
+const lobMsg = document.querySelector('#lobMsg');
+const lobBanner = document.querySelector('#lobBanner');
+const lobSubmit = document.querySelector('#lobSubmit');
+const lobCancel = document.querySelector('#lobCancel');
+const lobPermitHint = document.querySelector('#lobPermitHint');
+const lobFee = el('lob_fee');
+
+let lobEditingId = null; // null = adding, otherwise the line being edited
+let lobFeeAuto = false; // true while the fee box was filled in from a saved permit
+
+// messages inside this pop-up (the page toast would sit behind it)
+function showLob(text, type) {
+  lobMsg.textContent = text;
+  lobMsg.className = type;
+}
+
+const permitById = (id) => lookups.sanitary_permits.find((p) => p.id === id);
+const lobUsage = (lineId) =>
+  businesses.filter((b) => b.line_of_business_id === lineId).length;
+
+function renderLobList() {
+  const lines = [...lookups.lines_of_business].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+  if (!lines.length) {
+    lobList.innerHTML =
+      '<tr><td class="empty" colspan="5">No lines of business yet. Add the first one above.</td></tr>';
+    return;
+  }
+  lobList.innerHTML = lines
+    .map((l) => {
+      const p = permitById(l.sanitary_permit_id);
+      return `
+      <tr class="${l.id === lobEditingId ? 'editing' : ''}">
+        <td class="name">${esc(l.name)}</td>
+        <td>${p ? esc(p.name) : '—'}</td>
+        <td class="fee num">${p ? php(p.fee || 0) : '—'}</td>
+        <td class="num">${lobUsage(l.id)}</td>
+        <td class="actions">
+          <button type="button" class="btn-edit" data-lob="edit" data-id="${l.id}">Edit</button>
+          <button type="button" class="btn-delete" data-lob="delete" data-id="${l.id}">Delete</button>
+        </td>
+      </tr>`;
+    })
+    .join('');
+}
+
+// note under the permit box: new permit, or an existing one shared with other lines
+function refreshLobHint() {
+  const name = norm(el('lob_permit').value);
+  if (!name) {
+    lobPermitHint.textContent = '';
+    return;
+  }
+  const p = findLookup('sanitary_permits', name);
+  if (!p) {
+    lobPermitHint.textContent = 'New permit. It will be saved for next time.';
+    return;
+  }
+  const others = lookups.lines_of_business.filter(
+    (l) => l.sanitary_permit_id === p.id && l.id !== lobEditingId
+  ).length;
+  lobPermitHint.textContent = others
+    ? `Existing permit, also used by ${others} other line${others === 1 ? '' : 's'}. Changing the fee here changes it for all of them.`
+    : 'Existing permit.';
+}
+
+function resetLobForm() {
+  lobEditingId = null;
+  lobFeeAuto = false;
+  lobForm.reset();
+  lobForm.querySelectorAll('.invalid').forEach((x) => x.classList.remove('invalid'));
+  updateGhost(lobFee);
+  lobBanner.style.display = 'none';
+  lobSubmit.textContent = 'Add line of business';
+  lobCancel.hidden = true;
+  lobPermitHint.textContent = '';
+  renderLobList();
+}
+
+function startLobEdit(line) {
+  lobEditingId = line.id;
+  const p = permitById(line.sanitary_permit_id);
+  el('lob_name').value = line.name;
+  el('lob_permit').value = p ? p.name : '';
+  lobFee.value = p ? Number(p.fee || 0).toFixed(2) : '';
+  lobFeeAuto = true;
+  updateGhost(lobFee);
+
+  lobBanner.textContent = `You are editing: ${line.name}`;
+  lobBanner.style.display = 'block';
+  lobSubmit.textContent = 'Update line of business';
+  lobCancel.hidden = false;
+  showLob('', '');
+  refreshLobHint();
+  renderLobList();
+  lobModal.scrollTop = 0;
+  el('lob_name').focus();
+}
+
+// suggestions: saved lines and permits while typing
+attachSuggest(el('lob_name'), () => lookups.lines_of_business.map((r) => r.name));
+attachSuggest(el('lob_permit'), () => lookups.sanitary_permits.map((r) => r.name));
+
+// picking or typing a saved permit fills in its fee
+el('lob_permit').addEventListener('input', () => {
+  const p = findLookup('sanitary_permits', el('lob_permit').value);
+  if (p) {
+    lobFee.value = Number(p.fee || 0).toFixed(2);
+    lobFeeAuto = true;
+  } else if (lobFeeAuto) {
+    lobFee.value = '';
+    lobFeeAuto = false;
+  }
+  updateGhost(lobFee);
+  refreshLobHint();
+});
+
+// fee box rules (".00" shown while typing)
+lobFee.addEventListener('input', () => {
+  let v = lobFee.value.replace(/[^\d.]/g, '');
+  const i = v.indexOf('.');
+  if (i !== -1) {
+    v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, '').slice(0, 2);
+  }
+  lobFee.value = v;
+  lobFeeAuto = false;
+  updateGhost(lobFee);
+});
+
+lobFee.addEventListener('blur', () => {
+  const v = lobFee.value;
+  lobFee.value = v === '' || v === '.' ? '' : Number(v).toFixed(2);
+  updateGhost(lobFee);
+});
+
+lobForm.addEventListener('input', (e) => e.target.classList.remove('invalid'));
+
+// add / update
+lobForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showLob('', '');
+  lobForm.querySelectorAll('.invalid').forEach((x) => x.classList.remove('invalid'));
+
+  const name = norm(el('lob_name').value);
+  const permitName = norm(el('lob_permit').value);
+  const fee = num(lobFee.value);
+
+  const bad = [];
+  if (!name) bad.push('lob_name');
+  if (!permitName) bad.push('lob_permit');
+  if (bad.length) {
+    bad.forEach((k) => el(k).classList.add('invalid'));
+    showLob('Please fill in the highlighted fields.', 'error');
+    return;
+  }
+
+  // the same name is the same line, so point the user to the existing one
+  const sameName = findLookup('lines_of_business', name);
+  if (sameName && sameName.id !== lobEditingId) {
+    el('lob_name').classList.add('invalid');
+    showLob(
+      `"${sameName.name}" already exists. Click Edit on it in the list below to change it.`,
+      'error'
+    );
+    return;
+  }
+
+  lobSubmit.disabled = true;
+  try {
+    // find or create the permit, and keep its fee up to date
+    let permit = findLookup('sanitary_permits', permitName);
+    if (permit) {
+      if (Number(permit.fee || 0) !== fee) {
+        const { error } = await supabase
+          .from('sanitary_permits')
+          .update({ fee })
+          .eq('id', permit.id);
+        if (error) throw error;
+      }
+    } else {
+      permit = await ensureLookup('sanitary_permits', permitName, { fee });
+    }
+
+    if (lobEditingId === null) {
+      const { error } = await supabase
+        .from('lines_of_business')
+        .insert({ name, sanitary_permit_id: permit.id });
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase
+        .from('lines_of_business')
+        .update({ name, sanitary_permit_id: permit.id })
+        .eq('id', lobEditingId)
+        .select();
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        showLob('Nothing was updated. Check the Supabase policy for this table.', 'error');
+        return;
+      }
+    }
+
+    const wasEditing = lobEditingId !== null;
+    await loadAll(); // refreshes the suggestions and the business list
+    resetLobForm();
+    showLob(wasEditing ? 'Line of business updated.' : 'Line of business added.', 'success');
+  } catch (err) {
+    if (isDuplicate(err)) {
+      el('lob_name').classList.add('invalid');
+      showLob(`"${name}" already exists.`, 'error');
+    } else {
+      showLob('Something went wrong while saving. Please try again.', 'error');
+      console.error(err);
+    }
+  } finally {
+    lobSubmit.disabled = false;
+  }
+});
+
+// edit / delete buttons in the list
+lobList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-lob]');
+  if (!btn) return;
+  const line = lookups.lines_of_business.find((l) => l.id === Number(btn.dataset.id));
+  if (!line) return;
+
+  if (btn.dataset.lob === 'edit') {
+    startLobEdit(line);
+    return;
+  }
+
+  const used = lobUsage(line.id);
+  if (used > 0) {
+    showLob(
+      `"${line.name}" is used by ${used} business${used === 1 ? '' : 'es'}, so it can't be deleted. Change those businesses first.`,
+      'error'
+    );
+    return;
+  }
+  if (!confirm(`Delete "${line.name}"?\n\nThis cannot be undone.`)) return;
+
+  const { data, error } = await supabase
+    .from('lines_of_business')
+    .delete()
+    .eq('id', line.id)
+    .select();
+
+  if (error) {
+    showLob(
+      error.code === '23503'
+        ? `"${line.name}" is still used by saved businesses, so it can't be deleted.`
+        : 'Could not delete the line of business. Please try again.',
+      'error'
+    );
+    console.error(error);
+    return;
+  }
+  if (!data || data.length === 0) {
+    showLob('Nothing was deleted. Check the Supabase policy for this table.', 'error');
+    return;
+  }
+
+  if (lobEditingId === line.id) resetLobForm();
+  await loadAll();
+  renderLobList();
+  showLob(`"${line.name}" was deleted.`, 'success');
+});
+
+// open / close
+document.querySelector('#lobBtn').addEventListener('click', () => {
+  resetLobForm();
+  showLob('', '');
+  lobModal.showModal();
+  el('lob_name').focus();
+});
+
+document.querySelector('#lobCloseBtn').addEventListener('click', () => lobModal.close());
+
+lobCancel.addEventListener('click', () => {
+  resetLobForm();
+  showLob('', '');
+});
+
+lobModal.addEventListener('click', (e) => {
+  if (e.target === lobModal) lobModal.close();
+});
+
+lobModal.addEventListener('close', () => {
+  resetLobForm();
+  showLob('', '');
 });
 
 // ---------- start ----------

@@ -936,3 +936,65 @@ td.num {
   background: var(--white);
   border-top: 1px solid var(--line);
 }
+
+/* ---------- lines of business manager ---------- */
+.lob-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1fr;
+  gap: 16px 18px;
+  margin-top: 18px;
+}
+
+.lob-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+#lobMsg:empty {
+  display: none;
+}
+
+#lobMsg {
+  flex: 1;
+  min-width: 220px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#lobMsg.error {
+  background: var(--red-soft);
+  color: var(--red-ink);
+  border: 1px solid #f3c3c3;
+}
+
+#lobMsg.success {
+  background: #e4f6e6;
+  color: #1f6b27;
+  border: 1px solid #bfe5c3;
+}
+
+#lobBanner {
+  display: none;
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  background: var(--yellow-soft);
+  border: 1px solid #f3dc99;
+  border-left: 4px solid var(--yellow);
+  border-radius: 8px;
+  color: var(--yellow-ink);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.lob-list {
+  margin: 22px 28px 28px;
+}
+
+.lob-list table {
+  min-width: 620px;
+}
